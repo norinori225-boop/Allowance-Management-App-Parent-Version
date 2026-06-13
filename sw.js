@@ -1,4 +1,4 @@
-const CACHE = "okozukai-v1";
+const CACHE = "okozukai-v2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest"];
 const ICONS = ["./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];
 self.addEventListener("install", (e) => {

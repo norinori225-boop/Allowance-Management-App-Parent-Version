@@ -140,7 +140,7 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
   .bigqr{display:flex;flex-direction:column;align-items:center;}
-  .bigqr img{width:230px;height:230px;image-rendering:pixelated;background:#fff;padding:8px;border-radius:10px;box-shadow:0 4px 12px var(--shadow);}
+  .bigqr img{width:min(82vw,320px);height:auto;image-rendering:pixelated;background:#fff;padding:10px;border-radius:10px;box-shadow:0 4px 12px var(--shadow);}
   .muted{font-size:12px;color:#7a6747;text-align:center;margin-top:8px;}
   .back{background:none;color:#6b5530;font-size:13px;font-weight:700;padding:8px;margin-bottom:6px;text-decoration:underline;}
   .hint{font-size:11px;color:#8a7650;background:#fffaf0;border:1px dashed #d7c193;border-radius:10px;padding:10px;margin-top:10px;line-height:1.5;}
@@ -423,7 +423,7 @@ function showUpdateQR(){
   $('parent-edit').classList.add('hidden');
   $('parent-qr').classList.remove('hidden');
   $('pq-title').textContent = parentState.name+" に渡す";
-  $('pq-img').innerHTML = `<img src="${makeQR(encodeState(parentState),6,2)}" alt="更新QR">`;
+  $('pq-img').innerHTML = `<img src="${makeQR(encodeState(parentState),8,4)}" alt="更新QR">`;
 }
 function backToEdit(){
   $('parent-qr').classList.add('hidden');
@@ -436,7 +436,7 @@ function showBigQR(text, title){
   const ov=$('overlay');
   closeScanner();
   ov.innerHTML = `<div class="card-box bigqr"><h2 style="margin:4px 0 12px">${escapeHTML(title)}</h2>
-     <img src="${makeQR(text,6,2)}"><p class="muted">親モードで読み取ってください</p></div>
+     <img src="${makeQR(text,8,4)}"><p class="muted">親モードで読み取ってください</p></div>
      <button class="btn kraft" style="max-width:340px" onclick="restoreOverlayAndClose()">とじる</button>`;
   ov.classList.remove('hidden');
 }
@@ -449,9 +449,23 @@ function openScanner(cb){
   $('overlay').classList.remove('hidden');
   $('scan-msg').textContent="カメラを起動しています…";
   const video=$('video');
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+  // 高解像度＋連続オートフォーカスを要求して読み取り精度を上げる
+  const constraints={video:{
+    facingMode:{ideal:'environment'},
+    width:{ideal:1920}, height:{ideal:1080},
+    focusMode:'continuous'
+  }};
+  navigator.mediaDevices.getUserMedia(constraints)
     .then(st=>{
       stream=st; video.srcObject=st; video.setAttribute('playsinline',true);
+      // 対応端末では連続オートフォーカスを明示的に有効化
+      try{
+        const track=st.getVideoTracks()[0];
+        const caps=track.getCapabilities?track.getCapabilities():{};
+        const adv=[];
+        if(caps.focusMode && caps.focusMode.indexOf('continuous')>=0) adv.push({focusMode:'continuous'});
+        if(adv.length) track.applyConstraints({advanced:adv}).catch(function(){});
+      }catch(e){}
       video.play(); scanning=true; $('scan-msg').textContent="QRを枠に合わせてください…";
       tick();
     })
@@ -467,7 +481,7 @@ function tick(){
     const ctx=canvas.getContext('2d');
     ctx.drawImage(video,0,0,canvas.width,canvas.height);
     const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const code=jsQR(img.data,img.width,img.height,{inversionAttempts:"dontInvert"});
+    const code=jsQR(img.data,img.width,img.height,{inversionAttempts:"attemptBoth"});
     if(code && code.data){
       const handled = onResult && onResult(code.data);
       if(handled){ return; }
@@ -483,7 +497,7 @@ $('file-input').addEventListener('change',e=>{
     const canvas=$('work'); canvas.width=img.width; canvas.height=img.height;
     const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0);
     const d=ctx.getImageData(0,0,img.width,img.height);
-    const code=jsQR(d.data,d.width,d.height);
+    const code=jsQR(d.data,d.width,d.height,{inversionAttempts:"attemptBoth"});
     if(code && code.data && onResult){ onResult(code.data); }
     else toast("QRを読み取れませんでした");
     e.target.value="";
