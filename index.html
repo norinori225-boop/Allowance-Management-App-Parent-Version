@@ -266,7 +266,8 @@ function decodeState(text){
   }catch(e){ return null; }
 }
 function makeQR(text, cell, margin){
-  const qr = qrcode(0, 'M');
+  // 画面表示専用なので誤り訂正は最小(L)。モジュール数が減り1つ1つが大きくなる→カメラで読み取りやすい
+  const qr = qrcode(0, 'L');
   qr.addData(text);
   qr.make();
   return qr.createDataURL(cell||4, margin||2);
@@ -477,11 +478,17 @@ function tick(){
   if(!scanning) return;
   const video=$('video'), canvas=$('work');
   if(video.readyState===video.HAVE_ENOUGH_DATA){
-    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+    // 画面中央の正方形だけを切り出して処理（枠に合わせた部分＝QR位置）。
+    // 余白を捨てることで処理が軽くなり、QRが画像内で大きく写る→読み取り率UP
+    const vw=video.videoWidth, vh=video.videoHeight;
+    const side=Math.min(vw,vh);
+    const sx=(vw-side)/2, sy=(vh-side)/2;
+    canvas.width=side; canvas.height=side;
     const ctx=canvas.getContext('2d');
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const code=jsQR(img.data,img.width,img.height,{inversionAttempts:"attemptBoth"});
+    ctx.drawImage(video, sx,sy,side,side, 0,0,side,side);
+    const img=ctx.getImageData(0,0,side,side);
+    // 画面表示QRは常に黒地に白なので反転試行は不要→高速に多くのフレームを処理できる
+    const code=jsQR(img.data,img.width,img.height,{inversionAttempts:"dontInvert"});
     if(code && code.data){
       const handled = onResult && onResult(code.data);
       if(handled){ return; }
